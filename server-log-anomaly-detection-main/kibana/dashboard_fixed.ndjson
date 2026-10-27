@@ -1,0 +1,10 @@
+import json, pathlib, re
+src = pathlib.Path(r'c:/Users/supri/Desktop/BDA/BDA/server-log-anomaly-detection/kibana/dashboard_export.ndjson')
+out = pathlib.Path(r'c:/Users/supri/Desktop/BDA/BDA/server-log-anomaly-detection/kibana/dashboard_fixed.ndjson')
+content = src.read_text(encoding='utf-8')
+# Replace the broken search ID with the fixed one
+target = '2cdc24b7-c660-4b2d-8726-dc8f54c789af'
+fixed = 'fixed-recent-anomalies-search'
+new_content = content.replace(target, fixed)
+out.write_text(new_content, encoding='utf-8')
+print('Created', out)

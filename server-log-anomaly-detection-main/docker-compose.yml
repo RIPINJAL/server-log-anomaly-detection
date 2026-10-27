@@ -1,0 +1,103 @@
+services:
+  kafka:
+    image: apache/kafka:3.8.1
+    hostname: ${KAFKA_HOST}
+    container_name: server-log-kafka
+    ports:
+      - "${KAFKA_EXTERNAL_PORT}:${KAFKA_EXTERNAL_PORT}"
+    environment:
+      KAFKA_NODE_ID: ${KAFKA_BROKER_ID}
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:${KAFKA_INTERNAL_PORT},EXTERNAL://0.0.0.0:${KAFKA_EXTERNAL_PORT},CONTROLLER://0.0.0.0:${KAFKA_CONTROLLER_PORT}
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://${KAFKA_HOST}:${KAFKA_INTERNAL_PORT},EXTERNAL://localhost:${KAFKA_EXTERNAL_PORT}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: ${KAFKA_BROKER_ID}@${KAFKA_HOST}:${KAFKA_CONTROLLER_PORT}
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_NUM_PARTITIONS: ${KAFKA_PARTITIONS}
+      KAFKA_DEFAULT_REPLICATION_FACTOR: ${KAFKA_REPLICATION_FACTOR}
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: ${KAFKA_REPLICATION_FACTOR}
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: ${KAFKA_REPLICATION_FACTOR}
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "./opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:${KAFKA_INTERNAL_PORT} --list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 15s
+      retries: 12
+      start_period: 45s
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${ELASTICSEARCH_VERSION}
+    hostname: ${ELASTICSEARCH_HOST}
+    container_name: server-log-elasticsearch
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      xpack.security.enrollment.enabled: "false"
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    ports:
+      - "${ELASTICSEARCH_PORT}:${ELASTICSEARCH_PORT}"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:${ELASTICSEARCH_PORT}/_cluster/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:${KIBANA_VERSION}
+    container_name: server-log-kibana
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      ELASTICSEARCH_HOSTS: http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}
+      SERVER_HOST: ${KIBANA_HOST}
+      SERVER_PORT: ${KIBANA_PORT}
+    ports:
+      - "${KIBANA_PORT}:${KIBANA_PORT}"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:${KIBANA_PORT}/api/status >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  spark-detector:
+    profiles: ["streaming"]
+    build:
+      context: .
+      dockerfile: spark_jobs/Dockerfile
+    container_name: server-log-spark-detector
+    depends_on:
+      kafka:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_HOST}:${KAFKA_INTERNAL_PORT}
+      KAFKA_TOPIC_SERVER_LOGS: ${KAFKA_TOPIC_SERVER_LOGS}
+      KAFKA_TOPIC_ANOMALIES: ${KAFKA_TOPIC_ANOMALIES}
+      ELASTICSEARCH_HOST: ${ELASTICSEARCH_HOST}
+      ELASTICSEARCH_PORT: ${ELASTICSEARCH_PORT}
+      SPARK_APP_NAME: ${SPARK_APP_NAME}
+      SPARK_LOG_LEVEL: ${SPARK_LOG_LEVEL}
+      SPARK_CHECKPOINT_LOCATION: /tmp/server-log-anomaly-checkpoint
+      SPARK_GPU_ENABLED: ${SPARK_GPU_ENABLED:-false}
+      SPARK_GPU_AMOUNT: ${SPARK_GPU_AMOUNT:-1}
+      SPARK_GPU_TASK_AMOUNT: ${SPARK_GPU_TASK_AMOUNT:-0.25}
+      SPARK_RAPIDS_VERSION: ${SPARK_RAPIDS_VERSION:-24.10.1}
+    volumes:
+      - spark-checkpoint:/tmp/server-log-anomaly-checkpoint
+
+volumes:
+  kafka-data:
+  elasticsearch-data:
+  spark-checkpoint:

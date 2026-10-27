@@ -1,0 +1,22 @@
+{
+  "name": "server-log-anomaly-detection",
+  "version": "1.0.0",
+  "description": "A portfolio-grade real-time streaming analytics pipeline for synthetic web access logs. The pipeline generates JSON logs, publishes them to Apache Kafka, detects windowed anomalies with PySpark Structured Streaming, persists raw events and findings in Elasticsearch, and visualizes them in Kibana.",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "vercel-dev": "vercel dev",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "playwright": "^1.63.0"
+  }
+}

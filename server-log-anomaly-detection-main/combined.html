@@ -1,0 +1,1250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Real-Time Server Log Anomaly Detection - SOC Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: #101623;
+      --card-border: #1b253b;
+      --card-hover: #151d2f;
+      --text: #f0f4fc;
+      --text-muted: #798ba6;
+      --accent: #00d2ff;
+      --accent-glow: rgba(0, 210, 255, 0.2);
+      --accent-green: #10b981;
+      --accent-green-glow: rgba(16, 185, 129, 0.2);
+      --accent-red: #ef4444;
+      --accent-red-glow: rgba(239, 68, 68, 0.25);
+      --accent-amber: #f59e0b;
+      --accent-purple: #8b5cf6;
+      --badge-critical: #ef4444;
+      --badge-high: #f97316;
+      --badge-medium: #f59e0b;
+      --grid-gap: 16px;
+      --radius: 12px;
+      --font-main: 'Plus Jakarta Sans', system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    [data-theme="light"] {
+      --bg: #f4f6fa;
+      --card-bg: #ffffff;
+      --card-border: #dbe3ee;
+      --card-hover: #f9fbff;
+      --text: #111827;
+      --text-muted: #64748b;
+      --accent: #0284c7;
+      --accent-glow: rgba(2, 132, 199, 0.15);
+      --accent-green: #059669;
+      --accent-green-glow: rgba(5, 150, 105, 0.15);
+      --accent-red: #dc2626;
+      --accent-red-glow: rgba(220, 38, 38, 0.15);
+      --accent-amber: #d97706;
+      --accent-purple: #7c3aed;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--font-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      transition: background-color 0.25s ease, color 0.25s ease;
+    }
+
+    /* TOP HEADER */
+    header {
+      background: var(--card-bg);
+      border-bottom: 1px solid var(--card-border);
+      padding: 14px 28px;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      backdrop-filter: blur(8px);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .brand-icon {
+      width: 38px;
+      height: 38px;
+      background: linear-gradient(135deg, #00d2ff, #3a7bd5);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 14px var(--accent-glow);
+    }
+    .brand-icon svg { width: 22px; height: 22px; stroke: #fff; fill: none; }
+    .brand-text h1 {
+      font-size: 17px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+    .brand-text p {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      margin-top: 2px;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    /* PULSING STATUS BADGE */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 30px;
+      font-size: 12px;
+      font-weight: 600;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      color: var(--accent-green);
+      font-family: var(--font-mono);
+    }
+    .status-badge.error {
+      background: rgba(239, 68, 68, 0.1);
+      border-color: rgba(239, 68, 68, 0.25);
+      color: var(--accent-red);
+    }
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-green);
+      box-shadow: 0 0 8px var(--accent-green);
+      animation: pulse 2s infinite;
+    }
+    .status-badge.error .pulse-dot {
+      background: var(--accent-red);
+      box-shadow: 0 0 8px var(--accent-red);
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.2); opacity: 1; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+
+    /* BUTTONS & CONTROLS */
+    .btn {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      color: var(--text);
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+      font-family: var(--font-main);
+    }
+    .btn:hover {
+      background: var(--card-hover);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #0284c7, #0369a1);
+      border: none;
+      color: #fff;
+    }
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #0369a1, #075985);
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
+    }
+    .btn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; }
+
+    select {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-family: var(--font-main);
+      cursor: pointer;
+      outline: none;
+    }
+
+    /* NAVIGATION TABS */
+    .nav-tabs {
+      display: flex;
+      gap: 6px;
+      padding: 0 28px;
+      background: var(--card-bg);
+      border-bottom: 1px solid var(--card-border);
+    }
+    .tab-btn {
+      padding: 12px 18px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 13.5px;
+      cursor: pointer;
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: color 0.2s ease;
+    }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active {
+      color: var(--accent);
+    }
+    .tab-btn.active::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: var(--accent);
+      box-shadow: 0 0 10px var(--accent);
+    }
+
+    /* MAIN CONTAINER */
+    main {
+      flex: 1;
+      padding: 24px 28px;
+      max-width: 1600px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* ERROR BANNER */
+    .alert-banner {
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid var(--accent-red);
+      color: #fca5a5;
+      padding: 12px 18px;
+      border-radius: var(--radius);
+      margin-bottom: 20px;
+      display: none;
+      align-items: center;
+      gap: 12px;
+      font-size: 13.5px;
+    }
+
+    /* KPI GRID */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: var(--grid-gap);
+      margin-bottom: 20px;
+    }
+    .kpi-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+    .kpi-card:hover {
+      transform: translateY(-2px);
+      border-color: var(--accent);
+    }
+    .kpi-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--accent);
+    }
+    .kpi-card.anomalies::before { background: var(--accent-red); }
+    .kpi-card.unauth::before { background: var(--accent-amber); }
+    .kpi-card.latency::before { background: var(--accent-purple); }
+
+    .kpi-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .kpi-title {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .kpi-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: var(--card-hover);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent);
+    }
+    .kpi-card.anomalies .kpi-icon { color: var(--accent-red); }
+    .kpi-card.unauth .kpi-icon { color: var(--accent-amber); }
+    .kpi-card.latency .kpi-icon { color: var(--accent-purple); }
+
+    .kpi-value {
+      font-size: 32px;
+      font-weight: 800;
+      font-family: var(--font-mono);
+      letter-spacing: -0.03em;
+      line-height: 1;
+    }
+    .kpi-sub {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* CHARTS & VISUALIZATIONS GRID */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: var(--grid-gap);
+      margin-bottom: 20px;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+    .col-12 { grid-column: span 12; }
+    .col-8 { grid-column: span 8; }
+    .col-6 { grid-column: span 6; }
+    .col-4 { grid-column: span 4; }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .card-header h3 {
+      font-size: 14.5px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-header .badge {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 20px;
+      background: var(--card-hover);
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    /* CHART WRAPPERS */
+    .chart-box {
+      height: 220px;
+      position: relative;
+      overflow: hidden;
+    }
+    .empty-state {
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+
+    /* CUSTOM SVG CHARTS */
+    svg.area-chart {
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+    .area-fill {
+      fill: url(#area-grad);
+      opacity: 0.35;
+    }
+    .chart-line {
+      fill: none;
+      stroke: var(--accent);
+      stroke-width: 2.5;
+    }
+    .chart-point {
+      fill: var(--bg);
+      stroke: var(--accent);
+      stroke-width: 2;
+      transition: r 0.2s ease;
+    }
+    .chart-point:hover {
+      r: 6;
+      stroke-width: 3;
+    }
+
+    /* BARS CHART */
+    .bars-container {
+      display: flex;
+      align-items: flex-end;
+      gap: 12px;
+      height: 180px;
+      padding-top: 10px;
+    }
+    .bar-item {
+      flex: 1;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      align-items: center;
+      min-width: 32px;
+    }
+    .bar-fill {
+      width: 100%;
+      max-width: 44px;
+      border-radius: 6px 6px 0 0;
+      background: linear-gradient(180deg, var(--accent), rgba(0, 210, 255, 0.4));
+      min-height: 4px;
+      transition: height 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .bar-fill.red {
+      background: linear-gradient(180deg, var(--accent-red), rgba(239, 68, 68, 0.4));
+    }
+    .bar-fill.amber {
+      background: linear-gradient(180deg, var(--accent-amber), rgba(245, 158, 11, 0.4));
+    }
+    .bar-fill.purple {
+      background: linear-gradient(180deg, var(--accent-purple), rgba(139, 92, 246, 0.4));
+    }
+    .bar-val {
+      font-size: 11px;
+      font-family: var(--font-mono);
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .bar-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 6px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 60px;
+      text-align: center;
+    }
+
+    /* HORIZONTAL RANKING BARS */
+    .rank-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      height: 200px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .rank-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .rank-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      font-family: var(--font-mono);
+    }
+    .rank-bar-bg {
+      height: 7px;
+      background: var(--card-hover);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .rank-bar-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 4px;
+      transition: width 0.4s ease;
+    }
+    .rank-bar-fill.danger { background: var(--accent-red); }
+
+    /* TABLE */
+    .table-container {
+      overflow-x: auto;
+      max-height: 420px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      text-align: left;
+    }
+    thead th {
+      padding: 12px 14px;
+      background: var(--card-hover);
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 11.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      border-bottom: 1px solid var(--card-border);
+    }
+    tbody td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--card-border);
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+    }
+    tbody tr:hover {
+      background: var(--card-hover);
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .pill.critical { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+    .pill.high { background: rgba(249, 115, 22, 0.15); color: #fb923c; border: 1px solid rgba(249, 115, 22, 0.3); }
+    .pill.medium { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+
+    /* ANALYTICS SECTION HERO BANNER */
+    .analytics-banner {
+      background: linear-gradient(135deg, rgba(0, 210, 255, 0.08), rgba(16, 185, 129, 0.05));
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 18px 24px;
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 14px;
+    }
+    .analytics-banner-title h2 {
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .analytics-banner-title p {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+      font-family: var(--font-mono);
+    }
+    .analytics-metrics-strip {
+      display: flex;
+      gap: 18px;
+      flex-wrap: wrap;
+    }
+    .analytics-metric-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .analytics-metric-item span:first-child {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    .analytics-metric-item span:last-child {
+      font-size: 16px;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      color: var(--accent);
+    }
+
+    /* ARCHITECTURE PIPELINE TAB */
+    .pipeline-view {
+      padding: 30px;
+      display: flex;
+      flex-direction: column;
+      gap: 30px;
+    }
+    .pipeline-nodes {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: relative;
+      padding: 20px 0;
+    }
+    .pipeline-node {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 20px;
+      width: 220px;
+      text-align: center;
+      position: relative;
+      z-index: 2;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    }
+    .pipeline-node h4 { font-size: 14px; margin-bottom: 6px; color: var(--accent); }
+    .pipeline-node p { font-size: 11px; color: var(--text-muted); }
+    .node-status {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      background: var(--accent-green);
+      border-radius: 50%;
+      margin-right: 6px;
+    }
+
+    /* RESPONSIVE */
+    @media (max-width: 1200px) {
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+      .col-8, .col-4, .col-6 { grid-column: span 12; }
+    }
+    @media (max-width: 768px) {
+      header { flex-direction: column; gap: 12px; align-items: flex-start; }
+      .kpi-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header>
+    <div class="brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+      </div>
+      <div class="brand-text">
+        <h1>Server Log Anomaly Detection</h1>
+        <p>Real-Time Streaming Security & Telemetry Pipeline</p>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <div id="statusBadge" class="status-badge">
+        <span class="pulse-dot"></span>
+        <span id="statusText">Connecting…</span>
+      </div>
+
+      <select id="autoInterval">
+        <option value="5000">Refresh: 5s</option>
+        <option value="10000" selected>Refresh: 10s</option>
+        <option value="30000">Refresh: 30s</option>
+        <option value="0">Manual Only</option>
+      </select>
+
+      <button id="btnRefresh" class="btn" title="Refresh Now">
+        <svg viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+        Sync
+      </button>
+
+      <button id="btnTheme" class="btn" title="Toggle Light/Dark Theme">
+        🌓 Theme
+      </button>
+
+      <button id="btnSwitchAnalytics" class="btn btn-primary" onclick="document.querySelector('[data-tab=\'tab-analytics\']').click()">
+        📊 Analytics View
+      </button>
+    </div>
+  </header>
+
+  <!-- NAVIGATION TABS -->
+  <div class="nav-tabs">
+    <button class="tab-btn active" data-tab="tab-overview">⚡ Live Telemetry</button>
+    <button class="tab-btn" data-tab="tab-analytics">📊 Analytics Dashboard</button>
+    <button class="tab-btn" data-tab="tab-pipeline">🔄 Pipeline Topology</button>
+  </div>
+
+  <main>
+    <div id="errorAlert" class="alert-banner">
+      <strong>⚠️ Pipeline Alert:</strong> <span id="errorMsg">Failed to connect to backend</span>
+    </div>
+
+    <!-- TAB 1: OVERVIEW (LIVE TELEMETRY) -->
+    <div id="tab-overview" class="tab-content">
+      <!-- KPI SCORECARDS -->
+      <section class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-top">
+            <span class="kpi-title">Total Requests</span>
+            <div class="kpi-icon">📈</div>
+          </div>
+          <div class="kpi-value" id="kpiRequests">—</div>
+          <div class="kpi-sub">Total ingested documents in Elasticsearch</div>
+        </div>
+
+        <div class="kpi-card latency">
+          <div class="kpi-top">
+            <span class="kpi-title">Average Latency</span>
+            <div class="kpi-icon">⚡</div>
+          </div>
+          <div class="kpi-value" id="kpiLatency">— <span style="font-size: 16px;">ms</span></div>
+          <div class="kpi-sub">Across all endpoints & requests</div>
+        </div>
+
+        <div class="kpi-card anomalies">
+          <div class="kpi-top">
+            <span class="kpi-title">Detected Anomalies</span>
+            <div class="kpi-icon">🚨</div>
+          </div>
+          <div class="kpi-value" id="kpiAnomalies">—</div>
+          <div class="kpi-sub">PySpark windowed anomaly findings</div>
+        </div>
+
+        <div class="kpi-card unauth">
+          <div class="kpi-top">
+            <span class="kpi-title">Unauthorized Attempts</span>
+            <div class="kpi-icon">🛡️</div>
+          </div>
+          <div class="kpi-value" id="kpiUnauth">—</div>
+          <div class="kpi-sub">HTTP 401 & 403 authorization failures</div>
+        </div>
+      </section>
+
+      <!-- ROW 1: TIME SERIES & STATUS DISTRIBUTION -->
+      <section class="dashboard-grid">
+        <div class="card col-8">
+          <div class="card-header">
+            <h3>📈 Request Activity Over Time</h3>
+            <span class="badge">Last 24 Hours</span>
+          </div>
+          <div class="chart-box" id="timeSeriesChart"></div>
+        </div>
+
+        <div class="card col-4">
+          <div class="card-header">
+            <h3>🌐 HTTP Status Code Distribution</h3>
+            <span class="badge">Real-Time</span>
+          </div>
+          <div class="chart-box" id="statusChart"></div>
+        </div>
+
+        <!-- ROW 2: ANOMALY TYPES & SEVERITY -->
+        <div class="card col-4">
+          <div class="card-header">
+            <h3>⚠️ Anomalies by Classification</h3>
+            <span class="badge">Types</span>
+          </div>
+          <div class="chart-box" id="typesChart"></div>
+        </div>
+
+        <div class="card col-4">
+          <div class="card-header">
+            <h3>🔥 Severity Distribution</h3>
+            <span class="badge">Threat Level</span>
+          </div>
+          <div class="chart-box" id="severityChart"></div>
+        </div>
+
+        <div class="card col-4">
+          <div class="card-header">
+            <h3>📡 HTTP Methods</h3>
+            <span class="badge">Verb</span>
+          </div>
+          <div class="chart-box" id="methodsChart"></div>
+        </div>
+
+        <!-- ROW 3: TOP ATTACKERS & CLIENT IPS -->
+        <div class="card col-6">
+          <div class="card-header">
+            <h3>🎯 Top Suspicious Attacking IPs</h3>
+            <span class="badge">High Risk</span>
+          </div>
+          <div class="rank-list" id="attackersList"></div>
+        </div>
+
+        <div class="card col-6">
+          <div class="card-header">
+            <h3>🖥️ Top Active Client IPs</h3>
+            <span class="badge">Traffic Volume</span>
+          </div>
+          <div class="rank-list" id="clientIpsList"></div>
+        </div>
+
+        <!-- ROW 4: RECENT ANOMALIES TABLE -->
+        <div class="card col-12">
+          <div class="card-header">
+            <h3>🚨 Recent Security Anomalies Stream</h3>
+            <input type="text" id="tableFilter" placeholder="Filter by IP, Type or Message…" style="background:var(--card-hover); border:1px solid var(--card-border); color:var(--text); padding:6px 12px; border-radius:6px; font-size:12px; font-family:var(--font-mono); outline:none;" />
+          </div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Window Start</th>
+                  <th>Anomaly Type</th>
+                  <th>Severity</th>
+                  <th>Client IP</th>
+                  <th>Unauthorized Hits</th>
+                  <th>Diagnostic Message</th>
+                </tr>
+              </thead>
+              <tbody id="anomaliesTableBody">
+                <tr><td colspan="6" style="text-align:center; padding: 40px; color: var(--text-muted);">Awaiting streaming anomalies…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- TAB 2: ANALYTICS DASHBOARD (STANDALONE REPLACEMENT) -->
+    <div id="tab-analytics" class="tab-content" style="display: none;">
+      <!-- ANALYTICS BANNER & METRICS STRIP -->
+      <section class="analytics-banner">
+        <div class="analytics-banner-title">
+          <h2>📊 SOC Analytics & Observability Center</h2>
+          <p>Real-Time Deep-Dive Aggregations & Threat Intelligence powered by /api/dashboard</p>
+        </div>
+        <div class="analytics-metrics-strip">
+          <div class="analytics-metric-item">
+            <span>Ingested Traffic</span>
+            <span id="analyticsBannerTraffic">—</span>
+          </div>
+          <div class="analytics-metric-item">
+            <span>Threat Incidents</span>
+            <span id="analyticsBannerAnomalies" style="color:var(--accent-red)">—</span>
+          </div>
+          <div class="analytics-metric-item">
+            <span>Avg Latency</span>
+            <span id="analyticsBannerLatency" style="color:var(--accent-purple)">—</span>
+          </div>
+          <div class="analytics-metric-item">
+            <span>Auth Breaches</span>
+            <span id="analyticsBannerUnauth" style="color:var(--accent-amber)">—</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ANALYTICS KPI SCORECARDS (8 & 9: LATENCY STATISTICS & UNAUTHORIZED ATTEMPTS) -->
+      <section class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-top">
+            <span class="kpi-title">Total Request Volume</span>
+            <div class="kpi-icon">📊</div>
+          </div>
+          <div class="kpi-value" id="analyticsKpiRequests">—</div>
+          <div class="kpi-sub">Total documents aggregated from <code>server-logs-*</code></div>
+        </div>
+
+        <div class="kpi-card latency">
+          <div class="kpi-top">
+            <span class="kpi-title">Latency Statistics (Avg)</span>
+            <div class="kpi-icon">⚡</div>
+          </div>
+          <div class="kpi-value" id="analyticsKpiLatency">— <span style="font-size: 16px;">ms</span></div>
+          <div class="kpi-sub" id="analyticsLatencyRating">Mean processing time across cluster</div>
+        </div>
+
+        <div class="kpi-card anomalies">
+          <div class="kpi-top">
+            <span class="kpi-title">Anomaly Frequency</span>
+            <div class="kpi-icon">⚠️</div>
+          </div>
+          <div class="kpi-value" id="analyticsKpiAnomalies">—</div>
+          <div class="kpi-sub">Flagged threat events from <code>anomalies-*</code></div>
+        </div>
+
+        <div class="kpi-card unauth">
+          <div class="kpi-top">
+            <span class="kpi-title">Unauthorized Violations</span>
+            <div class="kpi-icon">🔒</div>
+          </div>
+          <div class="kpi-value" id="analyticsKpiUnauth">—</div>
+          <div class="kpi-sub">HTTP 401 & 403 authorization failures</div>
+        </div>
+      </section>
+
+      <!-- ANALYTICS VISUALIZATION GRID (1 to 7) -->
+      <section class="dashboard-grid">
+        <!-- 1. Request Activity Over Time -->
+        <div class="card col-8">
+          <div class="card-header">
+            <h3>📈 Request Activity Over Time (24h Trend)</h3>
+            <span class="badge" id="analyticsTrendBadge">Hourly Ingestion</span>
+          </div>
+          <div class="chart-box" id="analyticsTimeSeriesChart"></div>
+        </div>
+
+        <!-- 2. HTTP Status Code Distribution -->
+        <div class="card col-4">
+          <div class="card-header">
+            <h3>🌐 HTTP Status Code Distribution</h3>
+            <span class="badge">Response Codes</span>
+          </div>
+          <div class="chart-box" id="analyticsStatusChart"></div>
+        </div>
+
+        <!-- 3. HTTP Methods Distribution -->
+        <div class="card col-4">
+          <div class="card-header">
+            <h3>📡 HTTP Methods Distribution</h3>
+            <span class="badge">Protocols</span>
+          </div>
+          <div class="chart-box" id="analyticsMethodsChart"></div>
+        </div>
+
+        <!-- 6. Anomalies by Type -->
+        <div class="card col-4">
+          <div class="card-header">
+            <h3>⚠️ Anomalies by Type</h3>
+            <span class="badge">Classification</span>
+          </div>
+          <div class="chart-box" id="analyticsTypesChart"></div>
+        </div>
+
+        <!-- 7. Severity Distribution -->
+        <div class="card col-4">
+          <div class="card-header">
+            <h3>🔥 Threat Severity Distribution</h3>
+            <span class="badge">Risk Tier</span>
+          </div>
+          <div class="chart-box" id="analyticsSeverityChart"></div>
+        </div>
+
+        <!-- 5. Top Suspicious / Attacking IPs -->
+        <div class="card col-6">
+          <div class="card-header">
+            <h3>🎯 Top Suspicious / Attacking IPs</h3>
+            <span class="badge">Threat Origins</span>
+          </div>
+          <div class="rank-list" id="analyticsAttackersList"></div>
+        </div>
+
+        <!-- 4. Top Active Client IPs -->
+        <div class="card col-6">
+          <div class="card-header">
+            <h3>🖥️ Top Active Client IPs</h3>
+            <span class="badge">Traffic Sources</span>
+          </div>
+          <div class="rank-list" id="analyticsClientIpsList"></div>
+        </div>
+
+        <!-- 10. Recent Security Anomalies Table -->
+        <div class="card col-12">
+          <div class="card-header">
+            <h3>🚨 Recent Security Anomalies Table</h3>
+            <input type="text" id="analyticsTableFilter" placeholder="Filter by Client IP, Type, or Message…" style="background:var(--card-hover); border:1px solid var(--card-border); color:var(--text); padding:6px 12px; border-radius:6px; font-size:12px; font-family:var(--font-mono); outline:none; width: 280px;" />
+          </div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Window Start</th>
+                  <th>Anomaly Type</th>
+                  <th>Severity</th>
+                  <th>Client IP</th>
+                  <th>Unauthorized Hits</th>
+                  <th>Diagnostic Message</th>
+                </tr>
+              </thead>
+              <tbody id="analyticsAnomaliesTableBody">
+                <tr><td colspan="6" style="text-align:center; padding: 40px; color: var(--text-muted);">Awaiting streaming anomalies…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- TAB 3: PIPELINE ARCHITECTURE -->
+    <div id="tab-pipeline" class="tab-content" style="display: none;">
+      <div class="card col-12">
+        <div class="card-header">
+          <h3>🔄 End-to-End Real-Time Big Data Pipeline Architecture</h3>
+          <span class="badge">Active Topology</span>
+        </div>
+        <div class="pipeline-view">
+          <div class="pipeline-nodes">
+            <div class="pipeline-node">
+              <h4>1. Synthetic Producer</h4>
+              <p><span class="node-status"></span>Python log generator simulating regular & brute-force/burst attacks</p>
+            </div>
+            <div style="font-size:24px; color:var(--text-muted)">➔</div>
+            <div class="pipeline-node">
+              <h4>2. Apache Kafka</h4>
+              <p><span class="node-status"></span>Topics: <code>server-logs</code> (3 partitions), KRaft cluster</p>
+            </div>
+            <div style="font-size:24px; color:var(--text-muted)">➔</div>
+            <div class="pipeline-node">
+              <h4>3. PySpark Structured Streaming</h4>
+              <p><span class="node-status"></span>Watermarked sliding windows, threshold detection & anomaly labeling</p>
+            </div>
+            <div style="font-size:24px; color:var(--text-muted)">➔</div>
+            <div class="pipeline-node">
+              <h4>4. Elasticsearch Analytics</h4>
+              <p><span class="node-status"></span>Indices: <code>server-logs-*</code> & <code>anomalies-*</code></p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    let refreshTimer = null;
+    let cachedAnomalies = [];
+
+    function fmt(n) {
+      return Number(n || 0).toLocaleString();
+    }
+
+    // TAB SWITCHING
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+        btn.classList.add('active');
+        $(btn.dataset.tab).style.display = 'block';
+      });
+    });
+
+    // THEME TOGGLE
+    $('btnTheme').addEventListener('click', () => {
+      const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+      document.documentElement.setAttribute('data-theme', isLight ? 'dark' : 'light');
+    });
+
+    // RENDER AREA TIME SERIES
+    function renderTimeSeries(containerId, items) {
+      const el = $(containerId);
+      if (!items || !items.length) {
+        el.innerHTML = '<div class="empty-state">No time-series data available</div>';
+        return;
+      }
+
+      const w = 800, h = 200, pad = 25;
+      const vals = items.map(x => +x.value || 0);
+      const max = Math.max(...vals, 1);
+      const min = Math.min(...vals, 0);
+
+      const pts = items.map((x, i) => {
+        const px = pad + (i * ((w - 2 * pad) / Math.max(1, items.length - 1)));
+        const py = h - pad - (((x.value - min) / (max - min || 1)) * (h - 2 * pad));
+        return [px, py];
+      });
+
+      const lineD = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+      const areaD = lineD + ` L ${pts[pts.length - 1][0]} ${h - pad} L ${pts[0][0]} ${h - pad} Z`;
+
+      const dots = pts.map((p, i) =>
+        `<circle class="chart-point" cx="${p[0]}" cy="${p[1]}" r="3.5"><title>${items[i].label}: ${fmt(items[i].value)} reqs</title></circle>`
+      ).join('');
+
+      el.innerHTML = `
+        <svg class="area-chart" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="area-grad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.6"/>
+              <stop offset="100%" stop-color="var(--accent)" stop-opacity="0.0"/>
+            </linearGradient>
+          </defs>
+          <line x1="${pad}" y1="${h - pad}" x2="${w - pad}" y2="${h - pad}" stroke="var(--card-border)" stroke-width="1"/>
+          <path class="area-fill" d="${areaD}"/>
+          <path class="chart-line" d="${lineD}"/>
+          ${dots}
+        </svg>
+      `;
+    }
+
+    // RENDER VERTICAL BARS
+    function renderBars(containerId, items, colorClass = '') {
+      const el = $(containerId);
+      if (!items || !items.length) {
+        el.innerHTML = '<div class="empty-state">No metric distribution</div>';
+        return;
+      }
+      const max = Math.max(...items.map(x => Number(x.value) || 0), 1);
+      el.innerHTML = `
+        <div class="bars-container">
+          ${items.map(item => `
+            <div class="bar-item" title="${item.label}: ${fmt(item.value)}">
+              <div class="bar-val">${fmt(item.value)}</div>
+              <div class="bar-fill ${colorClass}" style="height:${Math.max(4, (item.value / max) * 140)}px"></div>
+              <div class="bar-label">${item.label}</div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    // RENDER HORIZONTAL RANK LIST
+    function renderRankList(containerId, items, isDanger = false) {
+      const el = $(containerId);
+      if (!items || !items.length) {
+        el.innerHTML = '<div class="empty-state">No active IP records</div>';
+        return;
+      }
+      const max = Math.max(...items.map(x => Number(x.value) || 0), 1);
+      el.innerHTML = items.map(x => `
+        <div class="rank-item">
+          <div class="rank-row">
+            <span>${x.label}</span>
+            <span style="color:var(--text-muted)">${fmt(x.value)} events</span>
+          </div>
+          <div class="rank-bar-bg">
+            <div class="rank-bar-fill ${isDanger ? 'danger' : ''}" style="width:${Math.max(3, (x.value / max) * 100)}%"></div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // RENDER ANOMALIES TABLE
+    function renderTable(tbodyElement, filterValue, anomalies) {
+      const tbody = $(tbodyElement);
+      const query = (filterValue || '').toLowerCase().trim();
+
+      const filtered = (anomalies || []).filter(item => {
+        if (!query) return true;
+        return (item.client_ip && item.client_ip.toLowerCase().includes(query)) ||
+               (item.anomaly_type && item.anomaly_type.toLowerCase().includes(query)) ||
+               (item.message && item.message.toLowerCase().includes(query));
+      });
+
+      if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 30px; color: var(--text-muted);">No matching anomaly records found</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(item => {
+        const sev = String(item.severity || 'medium').toLowerCase();
+        return `
+          <tr>
+            <td>${new Date(item.window_start).toLocaleString()}</td>
+            <td><strong style="color:var(--text)">${item.anomaly_type || '—'}</strong></td>
+            <td><span class="pill ${sev}">${item.severity || 'UNKNOWN'}</span></td>
+            <td><code>${item.client_ip || '—'}</code></td>
+            <td style="color:${item.unauthorized_count > 0 ? 'var(--accent-red)' : 'inherit'}">${fmt(item.unauthorized_count)}</td>
+            <td title="${item.message || ''}">${(item.message || '—').slice(0, 110)}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // FILTER EVENT LISTENERS FOR BOTH TABLES
+    $('tableFilter').addEventListener('input', () => {
+      renderTable('anomaliesTableBody', $('tableFilter').value, cachedAnomalies);
+    });
+
+    $('analyticsTableFilter').addEventListener('input', () => {
+      renderTable('analyticsAnomaliesTableBody', $('analyticsTableFilter').value, cachedAnomalies);
+    });
+
+    // MAIN FETCH FUNCTION - POPULATES BOTH LIVE TELEMETRY AND ANALYTICS DASHBOARD
+    async function fetchDashboard() {
+      try {
+        const res = await fetch('/api/dashboard', { cache: 'no-store' });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || `HTTP ${res.status}`);
+        }
+        const data = await res.json();
+
+        // 1. UPDATE TAB 1: LIVE TELEMETRY KPIS
+        $('kpiRequests').textContent = fmt(data.kpis?.totalRequests);
+        $('kpiLatency').innerHTML = `${Number(data.kpis?.avgLatency || 0).toFixed(2)} <span style="font-size:16px;">ms</span>`;
+        $('kpiAnomalies').textContent = fmt(data.kpis?.totalAnomalies);
+        $('kpiUnauth').textContent = fmt(data.kpis?.unauthorizedAttempts);
+
+        // 2. RENDER TAB 1 VISUALIZATIONS
+        renderTimeSeries('timeSeriesChart', data.requestsOverTime);
+        renderBars('statusChart', data.statusDistribution);
+        renderBars('typesChart', data.anomalyTypes, 'red');
+        renderBars('severityChart', data.severity, 'amber');
+        renderBars('methodsChart', data.methods);
+        renderRankList('attackersList', data.topAttackers, true);
+        renderRankList('clientIpsList', data.topClientIps, false);
+
+        // 3. UPDATE TAB 2: ANALYTICS DASHBOARD KPIS & BANNER STRIP
+        $('analyticsKpiRequests').textContent = fmt(data.kpis?.totalRequests);
+        $('analyticsKpiLatency').innerHTML = `${Number(data.kpis?.avgLatency || 0).toFixed(2)} <span style="font-size:16px;">ms</span>`;
+        $('analyticsKpiAnomalies').textContent = fmt(data.kpis?.totalAnomalies);
+        $('analyticsKpiUnauth').textContent = fmt(data.kpis?.unauthorizedAttempts);
+
+        $('analyticsBannerTraffic').textContent = fmt(data.kpis?.totalRequests);
+        $('analyticsBannerAnomalies').textContent = fmt(data.kpis?.totalAnomalies);
+        $('analyticsBannerLatency').textContent = Number(data.kpis?.avgLatency || 0).toFixed(2) + ' ms';
+        $('analyticsBannerUnauth').textContent = fmt(data.kpis?.unauthorizedAttempts);
+
+        const latencyVal = Number(data.kpis?.avgLatency || 0);
+        $('analyticsLatencyRating').textContent = latencyVal < 50 ? 'Optimal cluster performance (< 50ms)' : 'Elevated latency threshold observed';
+
+        // 4. RENDER TAB 2 VISUALIZATIONS
+        renderTimeSeries('analyticsTimeSeriesChart', data.requestsOverTime);
+        renderBars('analyticsStatusChart', data.statusDistribution);
+        renderBars('analyticsMethodsChart', data.methods);
+        renderBars('analyticsTypesChart', data.anomalyTypes, 'red');
+        renderBars('analyticsSeverityChart', data.severity, 'amber');
+        renderRankList('analyticsAttackersList', data.topAttackers, true);
+        renderRankList('analyticsClientIpsList', data.topClientIps, false);
+
+        // 5. UPDATE ANOMALY TABLES ON BOTH TABS
+        cachedAnomalies = data.recentAnomalies || [];
+        renderTable('anomaliesTableBody', $('tableFilter').value, cachedAnomalies);
+        renderTable('analyticsAnomaliesTableBody', $('analyticsTableFilter').value, cachedAnomalies);
+
+        // 6. UPDATE STATUS INDICATOR
+        $('statusBadge').className = 'status-badge';
+        $('statusText').textContent = 'Live • ' + new Date().toLocaleTimeString();
+        $('errorAlert').style.display = 'none';
+
+      } catch (err) {
+        console.error('Fetch error:', err);
+        $('statusBadge').className = 'status-badge error';
+        $('statusText').textContent = 'Sync Offline';
+        $('errorAlert').style.display = 'flex';
+        $('errorMsg').textContent = err.message + ' (Ensure Elasticsearch and backend server are running)';
+      }
+    }
+
+    function setupAutoRefresh() {
+      if (refreshTimer) clearInterval(refreshTimer);
+      const interval = parseInt($('autoInterval').value, 10);
+      if (interval > 0) {
+        refreshTimer = setInterval(fetchDashboard, interval);
+      }
+    }
+
+    $('btnRefresh').addEventListener('click', fetchDashboard);
+    $('autoInterval').addEventListener('change', setupAutoRefresh);
+
+    // Initial trigger
+    fetchDashboard();
+    setupAutoRefresh();
+  </script>
+</body>
+</html>

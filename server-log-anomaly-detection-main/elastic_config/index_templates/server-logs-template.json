@@ -1,0 +1,22 @@
+{
+  "index_patterns": ["server-logs-*"],
+  "priority": 100,
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0
+    },
+    "mappings": {
+      "dynamic": "strict",
+      "properties": {
+        "timestamp": { "type": "date" },
+        "client_ip": { "type": "ip" },
+        "method": { "type": "keyword" },
+        "url": { "type": "keyword" },
+        "status_code": { "type": "integer" },
+        "latency_ms": { "type": "float" },
+        "user_id": { "type": "keyword" }
+      }
+    }
+  }
+}

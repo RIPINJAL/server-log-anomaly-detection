@@ -1,0 +1,22 @@
+{
+  "index_patterns": ["app-logs-*"],
+  "priority": 100,
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0
+    },
+    "mappings": {
+      "dynamic": "strict",
+      "properties": {
+        "timestamp": { "type": "date" },
+        "log_level": { "type": "keyword" },
+        "logger": { "type": "keyword" },
+        "function": { "type": "keyword" },
+        "source_file": { "type": "keyword" },
+        "source_line": { "type": "integer" },
+        "message": { "type": "text" }
+      }
+    }
+  }
+}

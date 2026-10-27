@@ -1,0 +1,5 @@
+# Python dependencies will be expanded in later build stages.
+kafka-python==2.2.0
+pyspark==3.5.3
+elasticsearch==8.15.1
+pytest==8.3.3
